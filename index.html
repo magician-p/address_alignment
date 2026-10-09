@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>地址对齐 Chat</title>
+
+  <!-- Markdown & Sanitize -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: rgba(17, 24, 39, 0.12);
+      --shadow: 0 10px 30px rgba(17, 24, 39, 0.08);
+      --primary: #3b82f6;
+      --primary-2: #2563eb;
+      --user-bg: #e8f1ff;
+      --bot-bg: #ffffff;
+      --code-bg: #0b1020;
+      --code-text: #e5e7eb;
+      --danger: #ef4444;
+      --radius: 14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Microsoft YaHei", "微软雅黑", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: var(--sans);
+    }
+
+    body {
+      min-height: 100vh;
+      background:
+        radial-gradient(800px 400px at 20% 10%, rgba(59, 130, 246, 0.18), transparent 60%),
+        radial-gradient(900px 450px at 80% 0%, rgba(37, 99, 235, 0.12), transparent 60%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    .page {
+      width: 100%;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 18px 16px 140px;
+      /* 底部留空间给输入框 */
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+      position: sticky;
+      top: 12px;
+      z-index: 20;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--primary), #7c3aed);
+      box-shadow: 0 10px 20px rgba(59, 130, 246, 0.25);
+    }
+
+    .title-wrap h1 {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }
+
+    .title-wrap p {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #ffffff;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
+    }
+
+    /* Chat area */
+    #chat-area {
+      margin-top: 14px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(10px);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 420px;
+    }
+
+    .hint {
+      border: 1px dashed rgba(59, 130, 246, 0.35);
+      background: rgba(59, 130, 246, 0.08);
+      border-radius: 12px;
+      padding: 12px 14px;
+      color: #1f3a8a;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .message-row {
+      display: flex;
+    }
+
+    .message-row.user {
+      justify-content: flex-end;
+    }
+
+    .message-row.bot {
+      justify-content: flex-start;
+    }
+
+    .message-bubble {
+      max-width: min(720px, 88%);
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 18px rgba(17, 24, 39, 0.06);
+      line-height: 1.65;
+      font-size: 14.5px;
+      word-break: break-word;
+      position: relative;
+    }
+
+    .user .message-bubble {
+      background: var(--user-bg);
+      border-color: rgba(59, 130, 246, 0.25);
+    }
+
+    .bot .message-bubble {
+      background: var(--bot-bg);
+    }
+
+    .meta {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--muted);
+      opacity: 0.85;
+    }
+
+    /* Markdown styles */
+    .markdown-content {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    .markdown-content h1,
+    .markdown-content h2,
+    .markdown-content h3 {
+      margin: 0.9em 0 0.4em;
+      line-height: 1.2;
+    }
+
+    .markdown-content p {
+      margin: 0.45em 0;
+    }
+
+    .markdown-content ul,
+    .markdown-content ol {
+      margin: 0.45em 0;
+      padding-left: 1.4em;
+    }
+
+    .markdown-content li {
+      margin: 0.2em 0;
+    }
+
+    .markdown-content code {
+      font-family: var(--mono);
+      font-size: 0.92em;
+      padding: 0.12em 0.35em;
+      border-radius: 8px;
+      background: rgba(17, 24, 39, 0.06);
+      border: 1px solid rgba(17, 24, 39, 0.08);
+    }
+
+    .markdown-content pre {
+      margin: 0.8em 0;
+      padding: 12px 12px;
+      border-radius: 14px;
+      background: var(--code-bg);
+      color: var(--code-text);
+      overflow-x: auto;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .markdown-content pre code {
+      background: transparent;
+      border: none;
+      padding: 0;
+      color: inherit;
+      font-size: 0.92em;
+    }
+
+    .markdown-content a {
+      color: var(--primary-2);
+      text-decoration: none;
+      border-bottom: 1px dashed rgba(37, 99, 235, 0.45);
+    }
+
+    .markdown-content a:hover {
+      border-bottom-style: solid;
+    }
+
+    /* Loading */
+    .loading-container {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      border: 2px solid rgba(107, 114, 128, 0.25);
+      border-top-color: rgba(59, 130, 246, 0.9);
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Input area */
+    #input-area {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 16px;
+      width: calc(100% - 32px);
+      max-width: 980px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(12px);
+      box-shadow: var(--shadow);
+      padding: 12px;
+      z-index: 50;
+    }
+
+    .input-grid {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    #user-input {
+      width: 100%;
+      min-height: 48px;
+      max-height: 180px;
+      padding: 12px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(17, 24, 39, 0.14);
+      background: #ffffff;
+      color: var(--text);
+      outline: none;
+      resize: none;
+      overflow-y: auto;
+      font-size: 14.5px;
+      line-height: 1.5;
+    }
+
+    #user-input:focus {
+      border-color: rgba(59, 130, 246, 0.55);
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+    }
+
+    #user-input::placeholder {
+      color: rgba(107, 114, 128, 0.8);
+    }
+
+    #send-btn {
+      padding: 12px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(37, 99, 235, 0.22);
+      background: linear-gradient(135deg, var(--primary), var(--primary-2));
+      color: white;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.08s ease, filter 0.15s ease, opacity 0.15s ease;
+      min-width: 96px;
+      height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      letter-spacing: 0.2px;
+    }
+
+    #send-btn:hover {
+      filter: brightness(1.03);
+    }
+
+    #send-btn:active {
+      transform: translateY(1px);
+    }
+
+    #send-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+      filter: none;
+      background: linear-gradient(135deg, #9ca3af, #6b7280);
+      border-color: rgba(107, 114, 128, 0.25);
+    }
+
+    .input-help {
+      margin-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 0 4px;
+      flex-wrap: wrap;
+    }
+
+    .kbd {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 2px 6px;
+      border: 1px solid rgba(17, 24, 39, 0.14);
+      border-radius: 8px;
+      background: #fff;
+      color: #374151;
+    }
+
+    .error-toast {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      background: rgba(239, 68, 68, 0.08);
+      color: #991b1b;
+      font-size: 13px;
+      display: none;
+    }
+
+    /* Scrollbar (optional) */
+    #user-input::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    #user-input::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    #user-input::-webkit-scrollbar-thumb {
+      background: rgba(59, 130, 246, 0.35);
+      border-radius: 999px;
+      border: 2px solid #ffffff;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <div class="header">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div class="title-wrap">
+          <h1>地址对齐 · Chat</h1>
+          <p>输入一段地址文本，自动抽取省市区街道、姓名、电话等字段</p>
+        </div>
+      </div>
+      <div class="pill" title="前端页面已加载">
+        <span class="dot" aria-hidden="true"></span>
+        前端已就绪
+      </div>
+    </div>
+
+    <div id="chat-area">
+      <div class="hint">
+        👋 试试粘贴一段文本，比如：<br />
+        <span class="kbd">广东省深圳市南山区科技园xx路xx号 张三 13800138000</span><br />
+        <div style="margin-top:8px;color:rgba(31,58,138,.9)">
+          发送：<span class="kbd">Enter</span> ｜换行：<span class="kbd">Shift</span> + <span class="kbd">Enter</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="input-area">
+    <div class="input-grid">
+      <textarea id="user-input" placeholder="输入地址文本，回车发送（Shift+Enter换行）"></textarea>
+      <button id="send-btn" onclick="sendMessage()">发送</button>
+    </div>
+    <div class="input-help">
+      <div>接口：<span class="kbd">POST /address_alignment</span></div>
+      <div>提示：字段会以 Markdown 列表形式返回</div>
+    </div>
+    <div id="error-toast" class="error-toast"></div>
+  </div>
+
+  <script>
+    const chatArea = document.getElementById('chat-area');
+    const userInput = document.getElementById('user-input');
+    const sendBtn = document.getElementById('send-btn');
+    const errorToast = document.getElementById('error-toast');
+
+    // Marked: 开启 GFM、保留换行（用 CSS 控制更自然）
+    marked.setOptions({
+      gfm: true,
+      breaks: true
+    });
+
+    function showError(msg) {
+      errorToast.textContent = msg;
+      errorToast.style.display = 'block';
+      setTimeout(() => {
+        errorToast.style.display = 'none';
+      }, 3500);
+    }
+
+    function scrollToBottom() {
+      // 更稳：滚到聊天容器底部
+      chatArea.scrollIntoView({ block: 'end' });
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+
+    // 自动调整输入框高度
+    userInput.addEventListener('input', () => {
+      userInput.style.height = 'auto';
+      userInput.style.height = Math.min(userInput.scrollHeight, 180) + 'px';
+    });
+
+    // 监听回车键：Enter 发送，Shift+Enter 换行
+    userInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (e.shiftKey) return;
+        e.preventDefault();
+        if (!sendBtn.disabled) sendMessage();
+      }
+    });
+
+    function createLoadingRow() {
+      const row = document.createElement('div');
+      row.className = 'message-row bot';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'message-bubble';
+
+      const loading = document.createElement('div');
+      loading.className = 'loading-container';
+      loading.innerHTML = `<span class="spinner" aria-hidden="true"></span><span>正在思索中…</span>`;
+
+      bubble.appendChild(loading);
+      row.appendChild(bubble);
+      return row;
+    }
+
+    function addMessage(content, isUser) {
+      const row = document.createElement('div');
+      row.className = 'message-row ' + (isUser ? 'user' : 'bot');
+
+      const bubble = document.createElement('div');
+      bubble.className = 'message-bubble';
+
+      if (isUser) {
+        bubble.textContent = content;
+      } else {
+        const markdownContainer = document.createElement('div');
+        markdownContainer.className = 'markdown-content';
+
+        // markdown -> html -> sanitize
+        const dirty = marked.parse(String(content));
+        markdownContainer.innerHTML = DOMPurify.sanitize(dirty, {
+          ADD_TAGS: ["iframe"],
+          ADD_ATTR: ["allowfullscreen"]
+        });
+
+        bubble.appendChild(markdownContainer);
+      }
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = new Date().toLocaleString();
+
+      bubble.appendChild(meta);
+      row.appendChild(bubble);
+      chatArea.appendChild(row);
+
+      scrollToBottom();
+    }
+
+    async function sendMessage() {
+      const message = userInput.value.trim();
+      if (!message) return;
+
+      // UI state
+      sendBtn.disabled = true;
+      errorToast.style.display = 'none';
+
+      addMessage(message, true);
+
+      userInput.value = '';
+      userInput.style.height = 'auto';
+
+      const loadingRow = createLoadingRow();
+      chatArea.appendChild(loadingRow);
+      scrollToBottom();
+
+      let responseContent = null;
+
+      try {
+        const response = await fetch('/address_alignment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message })
+        });
+
+        if (!response.ok) {
+          // 尽量拿到后端返回文本
+          const text = await response.text().catch(() => '');
+          throw new Error(`接口请求失败：${response.status} ${response.statusText}${text ? ' - ' + text : ''}`);
+        }
+
+        const data = await response.json();
+
+        const lines = [
+          `- 省份：${data.Prov ?? '无'}`,
+          `- 城市：${data.City ?? '无'}`,
+          `- 区县：${data.District ?? '无'}`,
+          `- 街道：${data.Town ?? '无'}`,
+          `- 详细地址：${data.Detail ?? '无'}`,
+          `- 姓名：${data.Name ?? '无'}`,
+          `- 电话：${data.Phone ?? '无'}`
+        ];
+
+        responseContent = lines.join('\n');
+
+      } catch (err) {
+        console.error('请求失败：', err);
+        responseContent = '系统暂时无法响应，请稍后再试 😥';
+        showError(err?.message || '请求失败');
+      } finally {
+        loadingRow.remove();
+        if (responseContent != null) addMessage(responseContent, false);
+        sendBtn.disabled = false;
+        userInput.focus();
+      }
+    }
+  </script>
+</body>
+
+</html>

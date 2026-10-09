@@ -1,0 +1,25 @@
+.vscode/
+
+# 检查点
+checkpoints/*
+!checkpoints/.gitkeep
+
+# 数据
+data/processed/*
+!data/processed/.gitkeep
+
+# 日志
+logs/*
+!logs/.gitkeep
+
+# 模型
+model/*
+!model/.gitkeep
+
+# 预训练权重
+pretrained/*
+!pretrained/.gitkeep
+
+test/
+
+__pycache__/
